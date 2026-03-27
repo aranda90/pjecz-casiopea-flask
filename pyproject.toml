@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.14"
 authors = [
     { name = "Guillermo Valdes", email = "guillermo.valdes@pjecz.gob.mx" },
-    { name = "Lucia Aranda", email = "lucia.aranda@pjecz.gob.mx" }
+    { name = "Lucia Aranda", email = "lucia.aranda@pjecz.gob.mx" },
     { name = "Ricardo Valdes", email = "ricardo.valdes@pjecz.gob.mx" }
 ]
 dependencies = [
