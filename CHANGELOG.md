@@ -14,6 +14,15 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 - En el perfil de usuario, cambio de contraseña con verificación en dos pasos (ventana para el código y después la contraseña nueva).
 - En el perfil del usuario, botones para editar el correo electrónico (pide la contraseña actual) y el teléfono (pide código de verificación), en ventanas de diálogo.
 - Campo `telefono` en los formularios nuevo y editar usuario, validado a 10 dígitos.
+- Nuevo _blueprint_ `sesiones` que lista las sesiones activas y permite cerrarlas; cada usuario tiene una sola sesión a la vez. Script `sql/v1.10.0-11-create-sesiones.sql`.
+- La sesión caduca a las `SESSION_DURATION_HOURS` horas (24 por defecto) del _login_, sin importar la actividad.
+- Añadidos formularios para crear nuevas reglas de _banneo_ o editarlas en `ban_bloqueados`.
+- El _login_ usa el servicio `login_ban`: rechaza a las direcciones IP y cuentas bloqueadas, cuenta los intentos fallidos y bloquea al llegar al máximo.
+- Creación de servicio `login_ban` para proteger el _login_ al sistema de ataques.
+- Nuevo _blueprint_ `ban_bloqueados` lista de castigo para bloquear direcciones IP o cuentas (email) con un tipo de _banneo_.
+- Nuevo _blueprint_ `ban_intentos` para consultar el número de intentos de _login_ por dirección IP y email, usado por las reglas de _banneo_ y para reportes de posibles ataques.
+- Visualización del nuevo campo: `api_key_o_oauth2` en la tabla `cit_citas` que identifica el origen de la creación de la cita.
+- Nuevo _blueprint_ tipo catálogo para identificar el tipo de _banneo_ que se implementará.
 - Se creó un nuevo _blueprint_ igual al de `aut_verificaciones_usuarios` pero ahora para clientes, llamado: `aut_verificaciones_clientes`.
 - Añadimos los campos `telefono` y `email` a las tablas de `aut_verificaciones_*` para guardar un histórico de que número de teléfono o dirección de email se uso en ese momento de autentificación y no perderlo por una actualización de datos del propio usuario hacía sus datos personales.
 - Nuevo _blueprint_ `aut_verificaciones_usuarios` para consultar los intentos de autentificación de dos pasos de los usuarios que acceden al área de administración del sistema.
@@ -31,15 +40,31 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
     - `v1.10.0-03-create-aut_verificaciones.sql` : Crea nuevas tablas para el código de verificación utilizado en la autentificación de dos pasos.
     - `v1.10.0-04-insert-modulos-aut.sql` : Añade los módulos a la BD y asigna los permisos para que los admins puedan acceder a ellos y modificarlos.
     - `v1.10.0-05-insert-registros-aut_verificaciones.sql` : Añade registros de prueba a la tabla de verificaciones de usuarios y clientes.
-    - `v1.10.0-06-desactivar-sms-whatsapp.sql` : Desactiva temporalmente los tipos de envío SMS y WhatsApp, mientras no esté lista la conexión con Twilio y WhatsApp; solo queda el envío por correo electrónico.
+    - `v1.10.0-06-create-ban_tipos.sql` : Añade el catálogo de tipos de _banneos_ para ataques al _login_ o _2FA_.
+    - `v1.10.0-07-create-ban_intentos.sql` : Crea la tabla `ban_intentos` con el contador de intentos de _login_ por dirección IP y email.
+    - `v1.10.0-08-insert-registros-ban_intentos.sql` : Añade 20 registros aleatorios de prueba a la tabla `ban_intentos` (no ejecutar en producción).
+    - `v1.10.0-09-create-ban_bloqueados.sql` : Crea la tabla `ban_bloqueados` con la lista de direcciones IP y cuentas bloqueadas.
+    - `v1.10.0-10-insert-registros-ban_bloqueados.sql` : Añade 20 registros de prueba a la tabla `ban_bloqueados` (no ejecutar en producción).
+    - `v1.10.0-11-create-sesiones.sql` : Añada la tabla de sesiones de usuarios.
+    - `v1.10.0-12-desactivar-sms-whatsapp.sql` : Desactiva temporalmente los tipos de envío SMS y WhatsApp, mientras no esté lista la conexión con Twilio y WhatsApp; solo queda el envío por correo electrónico.
 
 - Nueva variable de entorno:
     - `TWO_FACTOR_AUTHENTICATION_ENABLED=True` : Activa el modo de autentificación de dos factores al _login_ del sistema.
     - `SENDGRID_API_KEY` y `SENDGRID_FROM_EMAIL` : Necesarias para enviar el código de verificación por correo electrónico. Si `SENDGRID_API_KEY` está vacía, no se envía nada; fuera de producción el código solo se muestra en la terminal.
+    - `SESSION_DURATION_HOURS` : Duración activa de la sesión de usuarios.
+    - `PROXY_FIX_X_FOR=0` : Número de proxies delante de la app para tomar la IP real del cliente; en Cloud Run debe ser `1`, de lo contrario el _banneo_ por IP bloquea la IP del proxy y con ella a todos.
 
 ### ❌ Eliminado
 
 - _Script_ SQL de migración: `v1.8.0-01-anadir-modulo-agendas.sql`.
+
+### 🔐 Seguridad
+
+- Se pueden monitorear y cerrar las sesiones vía remota.
+- Caducidad de 24hr o al cerrar el navegados para la sesión.
+- Aplicado _banneo_ por dirección IP o por email.
+- Conteo de intentos de acceso incorrectos.
+- _Banneo_ de usuarios comprometidos.
 
 
 ### [1.9.0] 2026-10-27
