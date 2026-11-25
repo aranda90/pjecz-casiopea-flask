@@ -1,0 +1,231 @@
+{% extends 'usuarios/perfil_tarjeta.jinja2' %}
+
+{% block paso %}Paso 1 de 2: Confirmar identidad{% endblock %}
+
+{% block aviso %}
+    Para cambiar {{ dato }} primero confirme su identidad. Elija el método para recibir su código de verificación.
+{% endblock %}
+
+{% block tarjeta %}
+    {% if opciones %}
+        <form id="form_metodo" role="form">
+            <div class="form-group mb-2">
+                <label><strong>Método de envío</strong></label>
+                {% for opcion in opciones %}
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="aut_tipo_envio" id="aut_tipo_envio_{{ opcion.id }}" value="{{ opcion.id }}" required>
+                        <label class="form-check-label" for="aut_tipo_envio_{{ opcion.id }}">
+                            {{ opcion.texto }} <strong>{{ opcion.destino }}</strong>
+                        </label>
+                    </div>
+                {% endfor %}
+            </div>
+            {% if not telefono %}
+                <p class="text-body-secondary small">No tiene un teléfono registrado, por eso solo puede recibir el código por correo electrónico.</p>
+            {% endif %}
+            <div class="alert" id="mensaje_metodo" role="alert" hidden></div>
+            <div class="form-group d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center my-2">
+                <button type="submit" class="btn btn-success text-white" id="btn_enviar" disabled>Enviar código</button>
+                <a class="btn btn-outline-danger" href="{{ url_for('usuarios.perfil_verificacion_cancelar') }}">Cancelar</a>
+            </div>
+        </form>
+    {% else %}
+        <p>No hay métodos de envío disponibles. Comuníquese con el administrador del sistema.</p>
+        <a class="btn btn-outline-danger" href="{{ url_for('usuarios.perfil_verificacion_cancelar') }}">Cancelar</a>
+    {% endif %}
+
+    <!-- Diálogo para ingresar el código de verificación -->
+    <div class="modal fade" id="dialogoCodigo" data-bs-backdrop="static" tabindex="-1" aria-labelledby="dialogoCodigoTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title" id="dialogoCodigoTitulo">{{ titulo }}</h5>
+                </div>
+                <form id="form_codigo" autocomplete="off">
+                    <div class="modal-body text-center px-4">
+                        <p class="fs-5 fw-bold mb-1">Ingrese el código de verificación</p>
+                        <p class="text-body-secondary small">Enviado a <strong id="destino"></strong></p>
+                        <div class="alert" id="mensaje_codigo" role="alert" hidden></div>
+                        <div class="d-flex justify-content-center gap-2">
+                            {% for i in range(6) %}
+                                <input type="text" class="form-control codigo-casilla" inputmode="numeric" autocomplete="one-time-code"
+                                    maxlength="6" aria-label="Dígito {{ i + 1 }} del código">
+                            {% endfor %}
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg mt-4 px-4" id="btn_validar" disabled>
+                            <span class="mdi mdi-check"></span> Validar código de verificación
+                        </button>
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-link" id="btn_reenviar">Reenviar código</button>
+                        </div>
+                    </div>
+                </form>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-link text-decoration-none" data-bs-dismiss="modal">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block custom_javascript %}
+    <script>
+        (() => {
+            const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+            const formMetodo = document.getElementById('form_metodo');
+            if (!formMetodo) return;
+            const radios = [...document.querySelectorAll('input[name="aut_tipo_envio"]')];
+            const btnEnviar = document.getElementById('btn_enviar');
+            const mensajeMetodo = document.getElementById('mensaje_metodo');
+            const dialogoEl = document.getElementById('dialogoCodigo');
+            const dialogo = new bootstrap.Modal(dialogoEl);
+            const casillas = [...document.querySelectorAll('.codigo-casilla')];
+            const btnValidar = document.getElementById('btn_validar');
+            const btnReenviar = document.getElementById('btn_reenviar');
+            const mensajeCodigo = document.getElementById('mensaje_codigo');
+            let segundos = 0;
+            let reloj = null;
+
+            // Enviar JSON al servidor
+            const enviarJSON = async (url, datos) => {
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(datos),
+                    });
+                    if (!resp.ok) return { success: false, message: 'Ocurrió un error. Intente de nuevo.' };
+                    return await resp.json();
+                } catch (error) {
+                    return { success: false, message: 'No hay conexión con el servidor. Intente de nuevo.' };
+                }
+            };
+
+            // Mensajes con las alertas de Bootstrap
+            const pintarMensaje = (caja, tipo, texto) => {
+                caja.hidden = !texto;
+                caja.textContent = texto || '';
+                caja.className = tipo ? `alert alert-${tipo}` : 'alert';
+            };
+
+            // Botón ocupado mientras espera la respuesta
+            const ocupar = (boton, ocupado) => {
+                if (ocupado) {
+                    boton.dataset.texto = boton.innerHTML;
+                    boton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                    boton.disabled = true;
+                } else if (boton.dataset.texto) {
+                    boton.innerHTML = boton.dataset.texto;
+                    delete boton.dataset.texto;
+                    boton.disabled = false;
+                }
+            };
+
+            // Cuenta regresiva para reenviar
+            const pintarReloj = () => {
+                btnReenviar.disabled = segundos > 0;
+                btnReenviar.textContent = segundos > 0 ? `Reenviar código (${segundos}s)` : 'Reenviar código';
+            };
+            const iniciarReloj = (s) => {
+                clearInterval(reloj);
+                segundos = s || 0;
+                pintarReloj();
+                reloj = setInterval(() => {
+                    segundos -= 1;
+                    pintarReloj();
+                    if (segundos <= 0) clearInterval(reloj);
+                }, 1000);
+            };
+
+            const tipoElegido = () => {
+                const elegido = radios.find((r) => r.checked);
+                return elegido ? Number(elegido.value) : null;
+            };
+            radios.forEach((r) => r.addEventListener('change', () => { btnEnviar.disabled = false; }));
+
+            // Generar el código; si sale bien, abrir el diálogo
+            const enviarCodigo = async (boton, mensaje) => {
+                ocupar(boton, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_enviar_codigo_json", accion=accion) }}', { aut_tipo_envio: tipoElegido() });
+                ocupar(boton, false);
+                if (resp.segundos) iniciarReloj(resp.segundos);
+                if (!resp.success) {
+                    pintarMensaje(mensaje, 'warning', resp.message);
+                    return false;
+                }
+                document.getElementById('destino').textContent = resp.destino;
+                return true;
+            };
+
+            // Paso 1: Enviar código → abrir el diálogo
+            formMetodo.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                pintarMensaje(mensajeMetodo, '', '');
+                if (await enviarCodigo(btnEnviar, mensajeMetodo)) {
+                    limpiarCasillas();
+                    pintarMensaje(mensajeCodigo, '', '');
+                    dialogo.show();
+                }
+            });
+            dialogoEl.addEventListener('shown.bs.modal', () => casillas[0].focus());
+
+            // Reenviar desde el diálogo
+            btnReenviar.addEventListener('click', async () => {
+                pintarMensaje(mensajeCodigo, '', '');
+                if (await enviarCodigo(btnReenviar, mensajeCodigo)) {
+                    pintarMensaje(mensajeCodigo, 'success', 'Se envió un código nuevo.');
+                    limpiarCasillas();
+                    casillas[0].focus();
+                }
+            });
+
+            // Casillas del código: avanza sola, permite pegar el código completo y retroceder
+            const LONGITUD_CODIGO = 6;
+            const codigoActual = () => casillas.map((c) => c.value).join('');
+            const revisarCodigo = () => { btnValidar.disabled = codigoActual().length !== LONGITUD_CODIGO; };
+            const limpiarCasillas = () => { casillas.forEach((c) => { c.value = ''; }); revisarCodigo(); };
+            casillas.forEach((casilla, i) => {
+                casilla.addEventListener('focus', () => casilla.select());
+                casilla.addEventListener('input', () => {
+                    const limpio = casilla.value.replace(/\D/g, '');
+                    casilla.value = '';
+                    limpio.slice(0, LONGITUD_CODIGO - i).split('').forEach((d, k) => { casillas[i + k].value = d; });
+                    revisarCodigo();
+                    if (limpio) casillas[Math.min(i + limpio.length, LONGITUD_CODIGO - 1)].focus();
+                });
+                casilla.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Backspace') return;
+                    e.preventDefault();
+                    if (casilla.value) {
+                        casilla.value = '';
+                    } else if (i > 0) {
+                        casillas[i - 1].value = '';
+                        casillas[i - 1].focus();
+                    }
+                    revisarCodigo();
+                });
+            });
+
+            // Validar el código; si es correcto, pasar a escribir la contraseña nueva
+            document.getElementById('form_codigo').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                ocupar(btnValidar, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_validar_codigo_json", accion=accion) }}', { codigo: codigoActual() });
+                if (resp.success && resp.siguiente) {
+                    window.location.href = resp.siguiente;
+                    return;
+                }
+                ocupar(btnValidar, false);
+                pintarMensaje(mensajeCodigo, 'danger', resp.message);
+                limpiarCasillas();
+                if (resp.reiniciar) {
+                    // Hay que pedir otro código: cerrar el diálogo y avisar en la página
+                    dialogo.hide();
+                    pintarMensaje(mensajeMetodo, 'warning', resp.message);
+                } else {
+                    casillas[0].focus();
+                }
+            });
+        })();
+    </script>
+{% endblock %}

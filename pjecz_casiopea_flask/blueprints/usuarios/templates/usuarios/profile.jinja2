@@ -4,20 +4,429 @@
 
 {% block title %}Perfil{% endblock %}
 
+{% block custom_head %}
+    <style>
+        /* Casillas del código de verificación */
+        .codigo-casilla {
+            width: 45px;
+            height: 45px;
+            padding: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+    </style>
+{% endblock %}
+
 {% block topbar_actions %}
     {{ topbar.page('Perfil') }}
 {% endblock %}
+
+{# Renglón con el mismo formato de detail.label_value más un botón para editar que abre un diálogo #}
+{%- macro label_value_editar(label, value, dialogo, valor_id) -%}
+    <div class="row">
+        <div class="col-md-3 text-end">
+            {{ label }}
+        </div>
+        <div class="col-md-9">
+            <strong id="{{ valor_id }}">{{ value }}</strong>
+            <button type="button" class="btn btn-sm btn-outline-secondary py-0 px-1 ms-2" data-bs-toggle="modal" data-bs-target="#{{ dialogo }}"
+                title="Editar {{ label | lower }}" aria-label="Editar {{ label | lower }}">
+                <span class="mdi mdi-pencil"></span>
+            </button>
+        </div>
+    </div>
+{%- endmacro -%}
 
 {% block content %}
     {% call detail.card('Mi Perfil') %}
         {{ detail.label_value('Nombre', current_user.nombre) }}
         {{ detail.label_value('Distrito', current_user.autoridad.distrito.nombre) }}
         {{ detail.label_value('Autoridad', current_user.autoridad.descripcion) }}
-        {{ detail.label_value('e-mail', current_user.email) }}
+        {{ label_value_editar('Correo electrónico', current_user.email, 'dialogoCorreo', 'perfil_email') }}
         {{ detail.label_value('Puesto', current_user.puesto) }}
+        {{ label_value_editar('Teléfono', current_user.telefono or 'Sin teléfono registrado', 'dialogoTelefono', 'perfil_telefono') }}
+    {% endcall %}
+    {% call detail.card('Seguridad') %}
+        <p class="mb-2">Para cambiar tu contraseña te enviaremos un código de verificación.</p>
+        <a class="btn btn-outline-dark" href="{{ url_for('usuarios.perfil_verificacion_metodo', accion='contrasena') }}">
+            <span class="mdi mdi-key-outline"></span> Cambiar contraseña
+        </a>
     {% endcall %}
     {% call detail.card('Sistema') %}
         {{ detail.label_value('Hoy UTC', ahora_utc_str) }}
         {{ detail.label_value('Hoy MX Coahuila', ahora_mx_coah_str) }}
     {% endcall %}
+
+    <!-- Diálogo: actualizar correo electrónico (pide la contraseña actual) -->
+    <div class="modal fade" id="dialogoCorreo" tabindex="-1" aria-labelledby="dc_titulo" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dc_titulo"><span class="mdi mdi-email-outline"></span> Actualizar correo electrónico</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert" id="dc_mensaje" role="alert" hidden></div>
+                    <form id="dc_form" autocomplete="off" data-paso="formulario">
+                        <p class="text-body-secondary">Para cambiar el correo electrónico es necesario ingresar su contraseña actual.</p>
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-2">
+                                <label for="dc_email"><strong>Correo electrónico</strong></label>
+                                <input type="email" class="form-control" id="dc_email" required maxlength="256">
+                            </div>
+                            <div class="col-md-6 form-group mb-2">
+                                <label for="dc_confirmar"><strong>Confirmar correo electrónico</strong></label>
+                                <input type="email" class="form-control" id="dc_confirmar" required maxlength="256">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 form-group mb-2">
+                                <label for="dc_contrasena"><strong>Contraseña</strong></label>
+                                <input type="password" class="form-control" id="dc_contrasena" required autocomplete="current-password">
+                            </div>
+                            <div class="col-md-6 form-group mb-2">
+                                <label for="dc_contrasena_confirmar"><strong>Confirmar contraseña</strong></label>
+                                <input type="password" class="form-control" id="dc_contrasena_confirmar" required autocomplete="current-password">
+                            </div>
+                        </div>
+                    </form>
+                    <p class="mb-0" data-paso="listo" hidden>A partir de ahora inicie sesión con su correo electrónico nuevo.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-paso="formulario">Cancelar</button>
+                    <button type="submit" class="btn btn-success text-white" form="dc_form" id="dc_guardar" data-paso="formulario" disabled>Guardar</button>
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-paso="listo" hidden>Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Diálogo: cambiar teléfono (pide un código de verificación) -->
+    <div class="modal fade" id="dialogoTelefono" tabindex="-1" aria-labelledby="dt_titulo" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dt_titulo"><span class="mdi mdi-phone-outline"></span> Cambiar teléfono</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert" id="dt_mensaje" role="alert" hidden></div>
+
+                    <!-- Paso 1: método de envío -->
+                    <div data-paso="metodo">
+                        <p class="text-body-secondary">Para cambiar su teléfono primero confirme su identidad. Elija el método para recibir su código de verificación.</p>
+                        {% for opcion in opciones %}
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="radio" name="dt_aut_tipo_envio" id="dt_tipo_{{ opcion.id }}" value="{{ opcion.id }}">
+                                <label class="form-check-label" for="dt_tipo_{{ opcion.id }}">
+                                    {{ opcion.texto }} <strong>{{ opcion.destino }}</strong>
+                                </label>
+                            </div>
+                        {% else %}
+                            <p>No hay métodos de envío disponibles. Comuníquese con el administrador del sistema.</p>
+                        {% endfor %}
+                        {% if not telefono_enmascarado %}
+                            <p class="text-body-secondary small mb-0">No tiene un teléfono registrado, por eso solo puede recibir el código por correo electrónico.</p>
+                        {% endif %}
+                    </div>
+
+                    <!-- Paso 2: código de verificación -->
+                    <form data-paso="codigo" id="dt_form_codigo" autocomplete="off" hidden>
+                        <p class="text-body-secondary">Ingrese el código de 6 dígitos enviado a <strong id="dt_destino"></strong>.</p>
+                        <div class="d-flex justify-content-center gap-2">
+                            {% for i in range(6) %}
+                                <input type="text" class="form-control codigo-casilla" inputmode="numeric" autocomplete="one-time-code"
+                                    maxlength="6" aria-label="Dígito {{ i + 1 }} del código">
+                            {% endfor %}
+                        </div>
+                        <div class="text-center mt-2">
+                            <button type="button" class="btn btn-link" id="dt_reenviar">Reenviar código</button>
+                        </div>
+                    </form>
+
+                    <!-- Paso 3: teléfono nuevo -->
+                    <form data-paso="nuevo" id="dt_form_nuevo" autocomplete="off" hidden>
+                        <p class="text-body-secondary">Identidad confirmada. Escriba su teléfono nuevo a 10 dígitos.</p>
+                        <div class="form-group mb-2">
+                            <label for="dt_telefono"><strong>Teléfono nuevo</strong></label>
+                            <input type="tel" class="form-control" id="dt_telefono" inputmode="numeric" maxlength="10" required>
+                        </div>
+                        <div class="form-group mb-2">
+                            <label for="dt_confirmar"><strong>Confirmar teléfono</strong></label>
+                            <input type="tel" class="form-control" id="dt_confirmar" inputmode="numeric" maxlength="10" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <!-- Paso 1 -->
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-paso="metodo">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="dt_enviar" data-paso="metodo" disabled>Enviar código</button>
+                    <!-- Paso 2 -->
+                    <button type="button" class="btn btn-secondary" id="dt_cambiar_metodo" data-paso="codigo" hidden>Cambiar método</button>
+                    <button type="submit" class="btn btn-primary" form="dt_form_codigo" id="dt_validar" data-paso="codigo" hidden disabled>Validar código</button>
+                    <!-- Paso 3 -->
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-paso="nuevo" hidden>Cancelar</button>
+                    <button type="submit" class="btn btn-success text-white" form="dt_form_nuevo" id="dt_guardar" data-paso="nuevo" hidden disabled>Guardar</button>
+                    <!-- Listo -->
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal" data-paso="listo" hidden>Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block custom_javascript %}
+    <script>
+        (() => {
+            const CSRF = document.querySelector('meta[name="csrf-token"]').content;
+            const LONGITUD_CODIGO = 6;
+
+            // Enviar JSON al servidor
+            const enviarJSON = async (url, datos) => {
+                try {
+                    const resp = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+                        body: JSON.stringify(datos),
+                    });
+                    if (!resp.ok) return { success: false, message: 'Ocurrió un error. Intente de nuevo.' };
+                    return await resp.json();
+                } catch (error) {
+                    return { success: false, message: 'No hay conexión con el servidor. Intente de nuevo.' };
+                }
+            };
+
+            // Mensaje dentro del diálogo con las alertas de Bootstrap (igual que los mensajes flash)
+            const pintarMensaje = (caja, tipo, texto) => {
+                caja.hidden = !texto;
+                caja.textContent = texto || '';
+                caja.className = tipo ? `alert alert-${tipo}` : 'alert';
+            };
+
+            // Botón ocupado mientras espera la respuesta
+            const ocupar = (boton, ocupado) => {
+                if (ocupado) {
+                    boton.dataset.texto = boton.innerHTML;
+                    boton.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>';
+                    boton.disabled = true;
+                } else if (boton.dataset.texto) {
+                    boton.innerHTML = boton.dataset.texto;
+                    delete boton.dataset.texto;
+                }
+            };
+
+            // Mostrar solo los elementos del paso indicado (cuerpo y botones del pie)
+            const mostrarPaso = (dialogo, paso) => {
+                dialogo.querySelectorAll('[data-paso]').forEach((el) => { el.hidden = el.dataset.paso !== paso; });
+            };
+
+            // ── DIÁLOGO CORREO ──
+            const dc = document.getElementById('dialogoCorreo');
+            const dcCampos = ['dc_email', 'dc_confirmar', 'dc_contrasena', 'dc_contrasena_confirmar'].map((id) => document.getElementById(id));
+            const dcGuardar = document.getElementById('dc_guardar');
+            const dcMensaje = document.getElementById('dc_mensaje');
+            let dcGuardado = false;
+
+            const dcRevisar = () => { dcGuardar.disabled = dcCampos.some((c) => !c.value.trim()); };
+            dcCampos.forEach((c) => c.addEventListener('input', dcRevisar));
+
+            document.getElementById('dc_form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const [email, confirmar, contrasena, contrasenaConfirmar] = dcCampos.map((c) => c.value.trim());
+                let error = '';
+                if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) error = 'El correo electrónico no es válido.';
+                else if (email.toLowerCase() !== confirmar.toLowerCase()) error = 'Los correos electrónicos no coinciden.';
+                else if (contrasena !== contrasenaConfirmar) error = 'Las contraseñas no coinciden.';
+                if (error) {
+                    pintarMensaje(dcMensaje, 'warning', error);
+                    return;
+                }
+                ocupar(dcGuardar, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_correo_guardar_json") }}', {
+                    email, confirmar, contrasena, contrasena_confirmar: contrasenaConfirmar,
+                });
+                ocupar(dcGuardar, false);
+                dcRevisar();
+                if (resp.success) {
+                    dcGuardado = true;
+                    pintarMensaje(dcMensaje, 'success', resp.message);
+                    document.getElementById('perfil_email').textContent = resp.email;
+                    mostrarPaso(dc, 'listo');
+                } else {
+                    pintarMensaje(dcMensaje, 'warning', resp.message);
+                }
+            });
+
+            // Cada vez que se abre, inicia con el correo actual y sin contraseñas (igual que DialogCambiarCorreo.tsx);
+            // si se guardó, recargar para actualizar todo el perfil
+            const EMAIL_ACTUAL = {{ current_user.email | tojson }};
+            dc.addEventListener('show.bs.modal', () => {
+                const [email, confirmar, contrasena, contrasenaConfirmar] = dcCampos;
+                email.value = EMAIL_ACTUAL;
+                confirmar.value = EMAIL_ACTUAL;
+                contrasena.value = '';
+                contrasenaConfirmar.value = '';
+                dcRevisar();
+                pintarMensaje(dcMensaje, '', '');
+                mostrarPaso(dc, 'formulario');
+            });
+            // Seleccionar el correo para que se pueda escribir encima
+            dc.addEventListener('shown.bs.modal', () => dcCampos[0].select());
+            dc.addEventListener('hidden.bs.modal', () => { if (dcGuardado) location.reload(); });
+
+            // ── DIÁLOGO TELÉFONO ──
+            const dt = document.getElementById('dialogoTelefono');
+            const dtMensaje = document.getElementById('dt_mensaje');
+            const dtRadios = [...dt.querySelectorAll('input[name="dt_aut_tipo_envio"]')];
+            const dtEnviar = document.getElementById('dt_enviar');
+            const dtValidar = document.getElementById('dt_validar');
+            const dtReenviar = document.getElementById('dt_reenviar');
+            const dtGuardar = document.getElementById('dt_guardar');
+            const dtTelefono = document.getElementById('dt_telefono');
+            const dtConfirmar = document.getElementById('dt_confirmar');
+            const casillas = [...dt.querySelectorAll('.codigo-casilla')];
+            let tipoEnvio = null;
+            let segundos = 0;
+            let reloj = null;
+            let dtGuardado = false;
+
+            const irA = (paso) => {
+                mostrarPaso(dt, paso);
+                if (paso === 'codigo') casillas[0].focus();
+                if (paso === 'nuevo') dtTelefono.focus();
+            };
+
+            // Cuenta regresiva para reenviar
+            const pintarReloj = () => {
+                dtReenviar.disabled = segundos > 0;
+                dtReenviar.textContent = segundos > 0 ? `Reenviar código (${segundos}s)` : 'Reenviar código';
+            };
+            const iniciarReloj = (s) => {
+                clearInterval(reloj);
+                segundos = s || 0;
+                pintarReloj();
+                reloj = setInterval(() => {
+                    segundos -= 1;
+                    pintarReloj();
+                    if (segundos <= 0) clearInterval(reloj);
+                }, 1000);
+            };
+
+            // Casillas del código
+            const codigoActual = () => casillas.map((c) => c.value).join('');
+            const revisarCodigo = () => { dtValidar.disabled = codigoActual().length !== LONGITUD_CODIGO; };
+            const limpiarCasillas = () => { casillas.forEach((c) => { c.value = ''; }); revisarCodigo(); };
+            casillas.forEach((casilla, i) => {
+                casilla.addEventListener('focus', () => casilla.select());
+                casilla.addEventListener('input', () => {
+                    const limpio = casilla.value.replace(/\D/g, '');
+                    casilla.value = '';
+                    // Permite pegar el código completo en cualquier casilla
+                    limpio.slice(0, LONGITUD_CODIGO - i).split('').forEach((d, k) => { casillas[i + k].value = d; });
+                    revisarCodigo();
+                    if (limpio) casillas[Math.min(i + limpio.length, LONGITUD_CODIGO - 1)].focus();
+                });
+                casilla.addEventListener('keydown', (e) => {
+                    if (e.key !== 'Backspace') return;
+                    e.preventDefault();
+                    if (casilla.value) {
+                        casilla.value = '';
+                    } else if (i > 0) {
+                        casillas[i - 1].value = '';
+                        casillas[i - 1].focus();
+                    }
+                    revisarCodigo();
+                });
+            });
+
+            // Paso 1: enviar el código
+            dtRadios.forEach((r) => r.addEventListener('change', () => { tipoEnvio = Number(r.value); dtEnviar.disabled = false; }));
+            const enviarCodigo = async (boton) => {
+                pintarMensaje(dtMensaje, '', '');
+                ocupar(boton, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_enviar_codigo_json", accion="telefono") }}', { aut_tipo_envio: tipoEnvio });
+                ocupar(boton, false);
+                boton.disabled = false;
+                if (resp.success) {
+                    pintarMensaje(dtMensaje, 'success', resp.message);
+                    document.getElementById('dt_destino').textContent = resp.destino;
+                    limpiarCasillas();
+                    iniciarReloj(resp.segundos);
+                    irA('codigo');
+                } else {
+                    pintarMensaje(dtMensaje, 'warning', resp.message);
+                    if (resp.segundos) iniciarReloj(resp.segundos);
+                }
+            };
+            dtEnviar.addEventListener('click', () => enviarCodigo(dtEnviar));
+            dtReenviar.addEventListener('click', () => enviarCodigo(dtReenviar));
+            document.getElementById('dt_cambiar_metodo').addEventListener('click', () => {
+                pintarMensaje(dtMensaje, '', '');
+                irA('metodo');
+            });
+
+            // Paso 2: validar el código
+            document.getElementById('dt_form_codigo').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                ocupar(dtValidar, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_validar_codigo_json", accion="telefono") }}', { codigo: codigoActual() });
+                ocupar(dtValidar, false);
+                if (resp.success) {
+                    pintarMensaje(dtMensaje, '', '');
+                    irA('nuevo');
+                } else {
+                    pintarMensaje(dtMensaje, 'danger', resp.message);
+                    limpiarCasillas();
+                    if (resp.reiniciar) irA('metodo');
+                    else casillas[0].focus();
+                }
+            });
+
+            // Paso 3: guardar el teléfono nuevo
+            const revisarTelefono = () => { dtGuardar.disabled = !(dtTelefono.value.trim() && dtConfirmar.value.trim()); };
+            [dtTelefono, dtConfirmar].forEach((c) => c.addEventListener('input', () => {
+                c.value = c.value.replace(/\D/g, '');
+                revisarTelefono();
+            }));
+            document.getElementById('dt_form_nuevo').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const telefono = dtTelefono.value.trim();
+                const confirmar = dtConfirmar.value.trim();
+                let error = '';
+                if (!/^\d{10}$/.test(telefono)) error = 'El teléfono debe tener 10 dígitos.';
+                else if (telefono !== confirmar) error = 'Los teléfonos no coinciden.';
+                if (error) {
+                    pintarMensaje(dtMensaje, 'warning', error);
+                    return;
+                }
+                ocupar(dtGuardar, true);
+                const resp = await enviarJSON('{{ url_for("usuarios.perfil_telefono_guardar_json") }}', { telefono, confirmar });
+                ocupar(dtGuardar, false);
+                revisarTelefono();
+                if (resp.success) {
+                    dtGuardado = true;
+                    pintarMensaje(dtMensaje, 'success', resp.message);
+                    document.getElementById('perfil_telefono').textContent = resp.telefono;
+                    irA('listo');
+                } else {
+                    pintarMensaje(dtMensaje, 'warning', resp.message);
+                    if (resp.reiniciar) irA('metodo');
+                }
+            });
+
+            // Cada vez que se abre, inicia en el paso 1; si se guardó, recargar para actualizar los métodos de envío
+            dt.addEventListener('show.bs.modal', () => {
+                dtRadios.forEach((r) => { r.checked = false; });
+                tipoEnvio = null;
+                dtEnviar.disabled = true;
+                dtTelefono.value = '';
+                dtConfirmar.value = '';
+                revisarTelefono();
+                limpiarCasillas();
+                pintarMensaje(dtMensaje, '', '');
+                irA('metodo');
+            });
+            dt.addEventListener('hidden.bs.modal', () => { if (dtGuardado) location.reload(); });
+        })();
+    </script>
 {% endblock %}

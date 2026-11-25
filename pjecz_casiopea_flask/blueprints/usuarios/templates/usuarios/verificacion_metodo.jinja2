@@ -1,0 +1,51 @@
+{% extends 'layouts/login.jinja2' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block welcome %}
+    <div id="welcome" class="text-center">
+        <p><img class="img-fluid" src="https://storage.googleapis.com/pjecz-informatica/static/images/logo-login.png" alt="PJECZ"></p>
+        <h4 class="mb-3" id="titulo">{{ title }}</h4>
+    </div>
+{% endblock %}
+
+{% block content %}
+    <div class="my-2 text-light" data-bs-theme="dark">
+        {% if opciones %}
+            <form method="post" action="{{ url_for('usuarios.verificacion_metodo') }}" role="form">
+                {{ form.hidden_tag() }}
+                <p class="small">Elija el método para recibir su código de verificación.</p>
+                {% for opcion in opciones %}
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" required
+                            name="{{ form.aut_tipo_envio.name }}"
+                            id="aut_tipo_envio_{{ opcion.id }}"
+                            value="{{ opcion.id }}"
+                            {% if form.aut_tipo_envio.data == opcion.id %}checked{% endif %}>
+                        <label class="form-check-label small" for="aut_tipo_envio_{{ opcion.id }}">
+                            {{ opcion.texto }} <strong>{{ opcion.destino }}</strong>
+                        </label>
+                    </div>
+                {% endfor %}
+                {% if not telefono %}
+                    <p class="small text-body-secondary">No tiene un teléfono registrado, por eso solo puede recibir el código por correo electrónico.</p>
+                {% endif %}
+                <button class="w-100 btn btn-lg btn-primary my-2" type="submit" id="btn_enviar" disabled>Enviar código</button>
+            </form>
+        {% else %}
+            <p class="small">No hay métodos de envío disponibles. Comuníquese con el administrador del sistema.</p>
+        {% endif %}
+        <a class="w-100 btn btn-outline-light" href="{{ url_for('usuarios.verificacion_cancelar') }}">Regresar al inicio de sesión</a>
+    </div>
+{% endblock %}
+
+{% block custom_javascript %}
+    <script>
+        // Habilitar el botón Enviar solo cuando se haya elegido un método
+        const btnEnviar = document.getElementById('btn_enviar');
+        const radios = document.querySelectorAll('input[name="{{ form.aut_tipo_envio.name }}"]');
+        const revisar = () => { if (btnEnviar) btnEnviar.disabled = ![...radios].some((r) => r.checked); };
+        radios.forEach((r) => r.addEventListener('change', revisar));
+        revisar();
+    </script>
+{% endblock %}

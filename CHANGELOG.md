@@ -9,6 +9,11 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
 
 ### ✨ Mejoras
 
+- Verificación en dos pasos en el _login_: después de la contraseña se elige el medio de envío y se captura el código de 6 dígitos en casillas, con reenvío habilitado a los 60 segundos. El código vence en 10 minutos y se bloquea después de 5 intentos.
+- Envío del código de verificación por correo electrónico con SendGrid, en el momento, con la nueva plantilla `usuarios/email_codigo_verificacion.jinja2` y el logo `static/img/logo-saji-invertido.png` incrustado.
+- En el perfil de usuario, cambio de contraseña con verificación en dos pasos (ventana para el código y después la contraseña nueva).
+- En el perfil del usuario, botones para editar el correo electrónico (pide la contraseña actual) y el teléfono (pide código de verificación), en ventanas de diálogo.
+- Campo `telefono` en los formularios nuevo y editar usuario, validado a 10 dígitos.
 - Se creó un nuevo _blueprint_ igual al de `aut_verificaciones_usuarios` pero ahora para clientes, llamado: `aut_verificaciones_clientes`.
 - Añadimos los campos `telefono` y `email` a las tablas de `aut_verificaciones_*` para guardar un histórico de que número de teléfono o dirección de email se uso en ese momento de autentificación y no perderlo por una actualización de datos del propio usuario hacía sus datos personales.
 - Nuevo _blueprint_ `aut_verificaciones_usuarios` para consultar los intentos de autentificación de dos pasos de los usuarios que acceden al área de administración del sistema.
@@ -26,9 +31,11 @@ El formato se basa en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/
     - `v1.10.0-03-create-aut_verificaciones.sql` : Crea nuevas tablas para el código de verificación utilizado en la autentificación de dos pasos.
     - `v1.10.0-04-insert-modulos-aut.sql` : Añade los módulos a la BD y asigna los permisos para que los admins puedan acceder a ellos y modificarlos.
     - `v1.10.0-05-insert-registros-aut_verificaciones.sql` : Añade registros de prueba a la tabla de verificaciones de usuarios y clientes.
+    - `v1.10.0-06-desactivar-sms-whatsapp.sql` : Desactiva temporalmente los tipos de envío SMS y WhatsApp, mientras no esté lista la conexión con Twilio y WhatsApp; solo queda el envío por correo electrónico.
 
 - Nueva variable de entorno:
     - `TWO_FACTOR_AUTHENTICATION_ENABLED=True` : Activa el modo de autentificación de dos factores al _login_ del sistema.
+    - `SENDGRID_API_KEY` y `SENDGRID_FROM_EMAIL` : Necesarias para enviar el código de verificación por correo electrónico. Si `SENDGRID_API_KEY` está vacía, no se envía nada; fuera de producción el código solo se muestra en la terminal.
 
 ### ❌ Eliminado
 

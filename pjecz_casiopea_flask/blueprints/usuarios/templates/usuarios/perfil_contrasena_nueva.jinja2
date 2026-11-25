@@ -1,0 +1,29 @@
+{% extends 'usuarios/perfil_tarjeta.jinja2' %}
+{% import 'macros/form.jinja2' as f with context %}
+
+{% block paso %}Paso 2 de 2: Contraseña nueva{% endblock %}
+
+{% block aviso %}
+    Identidad confirmada. Escriba su contraseña nueva.
+{% endblock %}
+
+{% block tarjeta %}
+    <form method="post" action="{{ url_for('usuarios.perfil_contrasena_nueva') }}" autocomplete="off" role="form">
+        {{ form.hidden_tag() }}
+        <div class="form-group mb-2">
+            {{ f.field_label(form.contrasena) }}
+            {{ form.contrasena(class='form-control', autocomplete='new-password', autofocus='autofocus') }}
+            {{ f.field_errors(form.contrasena) }}
+        </div>
+        <div class="form-group mb-2">
+            {{ f.field_label(form.confirmar) }}
+            {{ form.confirmar(class='form-control', autocomplete='new-password') }}
+            {{ f.field_errors(form.confirmar) }}
+        </div>
+        <p class="text-body-secondary small">{{ contrasena_mensaje }}</p>
+        <div class="form-group d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center my-2">
+            <button type="submit" class="btn btn-success text-white">Guardar</button>
+            <a class="btn btn-outline-danger" href="{{ url_for('usuarios.perfil_verificacion_cancelar') }}">Cancelar</a>
+        </div>
+    </form>
+{% endblock %}

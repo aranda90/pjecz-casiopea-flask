@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <title>Código de verificación</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f2f4f7;">
+    {# Texto que se ve en la bandeja de entrada junto al asunto #}
+    <div style="display: none; max-height: 0; overflow: hidden;">Su código de verificación es {{ codigo }}. Vence en {{ minutos }} minutos.</div>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f2f4f7;">
+        <tr>
+            <td align="center" style="padding: 32px 16px;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                    style="max-width: 560px; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0, 67, 96, 0.08); font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+
+                    <!-- Encabezado -->
+                    <tr>
+                        <td align="center" style="background-color: #004360; padding: 28px 24px;">
+                            {# El logo va adjunto en el correo (ver send_to_sendgrid_codigo_verificacion.py) #}
+                            <img src="cid:logo_saji" alt="SAJI Citas" width="120" height="80" style="height: 80px; width: 120px; display: block; margin: 0 auto; border: 0;">
+                        </td>
+                    </tr>
+
+                    <!-- Contenido -->
+                    <tr>
+                        <td style="padding: 40px 40px 8px; color: #1f2933;">
+                            <h1 style="margin: 0 0 16px; font-size: 22px; font-weight: 600; color: #004360;">Hola, {{ nombre }}.</h1>
+                            <p style="margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #3e4c59;">
+                                Hemos recibido una solicitud para <strong style="color: #1f2933;">{{ motivo }}</strong>
+                                de la cuenta <a href="mailto:{{ email }}" style="color: #004360; text-decoration: none; font-weight: 600;">{{ email }}</a>.
+                            </p>
+                            <p style="margin: 0 0 12px; font-size: 15px; color: #3e4c59; text-align: center;">Ingrese el siguiente código de verificación:</p>
+                        </td>
+                    </tr>
+
+                    <!-- Código -->
+                    <tr>
+                        <td align="center" style="padding: 0 40px;">
+                            <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="background-color: #eef4f7; border: 1px solid #d3e2ea; border-radius: 12px;">
+                                <tr>
+                                    <td style="padding: 18px 32px; font-family: 'Courier New', Consolas, monospace; font-size: 38px; font-weight: 700; letter-spacing: 10px; color: #004360;">{{ codigo }}</td>
+                                </tr>
+                            </table>
+                            <p style="margin: 16px 0 0;">
+                                <span style="display: inline-block; padding: 6px 14px; background-color: #fdf6ec; color: #8a5a14; border-radius: 999px; font-size: 13px;">
+                                    &#9201; Vence en {{ minutos }} minutos &middot; solo se puede usar una vez
+                                </span>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Aviso de seguridad -->
+                    <tr>
+                        <td style="padding: 32px 40px 36px;">
+                            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top: 1px solid #e4e7eb;">
+                                <tr>
+                                    <td style="padding-top: 20px; font-size: 13px; line-height: 1.6; color: #616e7c;">
+                                        Si usted no hizo esta solicitud, ignore este mensaje. <strong>Nunca comparta este código</strong>;
+                                        el personal del Poder Judicial no se lo pedirá.
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                </table>
+
+                <!-- Pie -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width: 560px; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+                    <tr>
+                        <td align="center" style="padding: 20px 24px 0; font-size: 12px; line-height: 1.6; color: #7b8794;">
+                            Poder Judicial del Estado de Coahuila de Zaragoza<br>
+                            Blvd. Francisco Coss #945, Zona Centro, Saltillo, Coahuila de Zaragoza, México &middot; Tel. 844 777 4498<br>
+                            <span style="color: #9aa5b1;">Enviado el {{ fecha_elaboracion }} por un programa. Favor de no responder.</span>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

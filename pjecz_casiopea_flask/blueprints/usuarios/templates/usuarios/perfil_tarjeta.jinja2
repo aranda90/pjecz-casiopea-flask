@@ -1,0 +1,36 @@
+{# Base de las páginas para cambiar un dato del perfil, con el estilo de los formularios del sistema #}
+{% extends 'layouts/app.jinja2' %}
+{% import 'macros/topbar.jinja2' as topbar %}
+
+{% block title %}{{ titulo }}{% endblock %}
+
+{% block custom_head %}
+    <style>
+        /* Casillas del código de verificación */
+        .codigo-casilla {
+            width: 45px;
+            height: 45px;
+            padding: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+    </style>
+{% endblock %}
+
+{% block topbar_actions %}
+    {{ topbar.page(titulo) }}
+{% endblock %}
+
+{% block content %}
+    <div class="card my-2">
+        <div class="card-header"><span class="mdi {{ icono }}"></span> {% block paso %}{% endblock %}</div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p class="text-body-secondary">{% block aviso %}{% endblock %}</p>
+                    {% block tarjeta %}{% endblock %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
